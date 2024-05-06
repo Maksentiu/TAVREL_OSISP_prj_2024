@@ -1,0 +1,6 @@
+-rwxr-xr-x. 1 maksimka maksimka 39872 мая  6 16:39 ftserve
+-rw-r--r--. 1 maksimka maksimka  6913 мая  6 15:37 ftserve.c
+-rw-r--r--. 1 maksimka maksimka  1409 мая  6 15:31 ftserve.h
+-rw-r--r--. 1 maksimka maksimka 26712 мая  6 16:39 ftserve.o
+-rw-r--r--. 1 maksimka maksimka   288 мая  6 15:28 makefile
+-rw-r--r--. 1 maksimka maksimka     0 мая  6 16:53 tmp.txt
