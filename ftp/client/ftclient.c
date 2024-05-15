@@ -3,11 +3,6 @@
 
 int sock_control; 
 
-
-/**
- * Receive a response from server
- * Returns -1 on error, return code on success
- */
 int read_reply(){
 	int retcode = 0;
 	if (recv(sock_control, &retcode, sizeof retcode, 0) < 0) {
@@ -17,11 +12,6 @@ int read_reply(){
 	return ntohl(retcode);
 }
 
-
-
-/**
- * Print response message
- */
 void print_reply(int rc) 
 {
 	switch (rc) {
@@ -41,19 +31,14 @@ void print_reply(int rc)
 	
 }
 
-
-/**
- * Parse command in cstruct
- */ 
 int ftclient_read_command(char* buf, int size, struct command *cstruct)
 {
 	memset(cstruct->code, 0, sizeof(cstruct->code));
 	memset(cstruct->arg, 0, sizeof(cstruct->arg));
 	
-	printf("ftclient> ");	// prompt for input		
+	printf("ftclient> ");		
 	fflush(stdout); 	
 
-	// wait for user to enter a command
 	read_input(buf, size);
 		
 	char *arg = NULL;
@@ -61,11 +46,9 @@ int ftclient_read_command(char* buf, int size, struct command *cstruct)
 	arg = strtok (NULL, " ");
 
 	if (arg != NULL){
-		// store the argument if there is one
 		strncpy(cstruct->arg, arg, strlen(arg));
 	}
 
-	// buf = command
 	if (strcmp(buf, "list") == 0) {
 		strcpy(cstruct->code, "LIST");		
 	}
@@ -78,15 +61,13 @@ int ftclient_read_command(char* buf, int size, struct command *cstruct)
 	else if (strcmp(buf, "put") == 0) {
 		strcpy(cstruct->code, "STOR");
 	}
-	else {//invalid
+	else {
 		return -1;
 	}
 
-	// store code in beginning of buffer
 	memset(buf, 0, 400);
 	strcpy(buf, cstruct->code);
 
-	// if there's an arg, append it to the buffer
 	if (arg != NULL) {
 		strcat(buf, " ");
 		strncat(buf, cstruct->arg, strlen(cstruct->arg));
@@ -95,11 +76,6 @@ int ftclient_read_command(char* buf, int size, struct command *cstruct)
 	return 0;
 }
 
-
-
-/**
- * Do get <filename> command 
- */
 int ftclient_get(int data_sock, int sock_control, char* arg)
 {
     char data[MAXSIZE];
@@ -118,15 +94,10 @@ int ftclient_get(int data_sock, int sock_control, char* arg)
     return 0;
 }
 
-
-/**
- * Open data connection
- */
 int ftclient_open_conn(int sock_con)
 {
 	int sock_listen = socket_create(CLIENT_PORT_ID);
 
-	// send an ACK on control conn
 	int ack = 1;
 	if ((send(sock_con, (char*) &ack, sizeof(ack), 0)) < 0) {
 		printf("client: ack write error :%d\n", errno);
@@ -138,19 +109,12 @@ int ftclient_open_conn(int sock_con)
 	return sock_conn;
 }
 
-
-
-
-/** 
- * Do list commmand
- */
 int ftclient_list(int sock_data, int sock_con)
 {
-	size_t num_recvd;			// number of bytes received with recv()
-	char buf[MAXSIZE];			// hold a filename received from server
+	size_t num_recvd;
+	char buf[MAXSIZE];
 	int tmp = 0;
-
-	// Wait for server starting message
+	
 	if (recv(sock_con, &tmp, sizeof tmp, 0) < 0) {
 		perror("client: error reading message from server\n");
 		return -1;
@@ -166,7 +130,6 @@ int ftclient_list(int sock_data, int sock_con)
 	        perror("error");
 	}
 
-	// Wait for server done message
 	if (recv(sock_con, &tmp, sizeof tmp, 0) < 0) {
 		perror("client: error reading message from server\n");
 		return -1;
@@ -174,20 +137,13 @@ int ftclient_list(int sock_data, int sock_con)
 	return 0;
 }
 
-
-
-/**
- * Input: cmd struct with an a code and an arg
- * Concats code + arg into a string and sends to server
- */
 int ftclient_send_cmd(struct command *cmd)
 {
 	char buffer[MAXSIZE];
 	int rc;
 
 	sprintf(buffer, "%s %s", cmd->code, cmd->arg);
-	
-	// Send command string to server
+
 	rc = send(sock_control, buffer, (int)strlen(buffer), 0);	
 	if (rc < 0) {
 		perror("Error sending command to server");
@@ -197,42 +153,30 @@ int ftclient_send_cmd(struct command *cmd)
 	return 0;
 }
 
-
-
-/**
- * Get login details from user and
- * send to server for authentication
- */
 void ftclient_login()
 {
 	struct command cmd;
 	char user[256];
 	memset(user, 0, 256);
 
-	// Get username from user
 	printf("Name: ");	
 	fflush(stdout); 		
 	read_input(user, 256);
 
-	// Send USER command to server
 	strcpy(cmd.code, "USER");
 	strcpy(cmd.arg, user);
 	ftclient_send_cmd(&cmd);
 	
-	// Wait for go-ahead to send password
 	int wait;
 	recv(sock_control, &wait, sizeof wait, 0);
 
-	// Get password from user
 	fflush(stdout);	
 	char *pass = getpass("Password: ");	
 
-	// Send PASS command to server
 	strcpy(cmd.code, "PASS");
 	strcpy(cmd.arg, pass);
 	ftclient_send_cmd(&cmd);
 	
-	// wait for response
 	int retcode = read_reply();
 	switch (retcode) {
 		case 430:
@@ -303,7 +247,6 @@ int main(int argc, char* argv[])
 		exit(1);
 	}
 	
-	// Find an address to connect to & connect
 	for (rp = res; rp != NULL; rp = rp->ai_next) {
 		sock_control = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
 
@@ -320,24 +263,18 @@ int main(int argc, char* argv[])
 	}
 	freeaddrinfo(rp);
 
-
-	// Get connection, welcome messages
 	printf("Connected to %s.\n", host);
 	print_reply(read_reply()); 
 	
-
-	/* Get name and password and send to server */
 	ftclient_login();
 
-	while (1) { // loop until user types quit
+	while (1) {
 
-		// Get a command from user
 		if ( ftclient_read_command(buffer, sizeof buffer, &cmd) < 0) {
 			printf("Invalid command\n");
-			continue;	// loop back for another command
+			continue;
 		}
 
-		// Send command to server
 		if (send(sock_control, buffer, (int)strlen(buffer), 0) < 0 ) {
 			close(sock_control);
 			exit(1);
@@ -345,29 +282,23 @@ int main(int argc, char* argv[])
 
 		retcode = read_reply();		
 		if (retcode == 221) {
-			/* If command was quit, just exit */
 			print_reply(221);		
 			break;
 		}
 		
 		if (retcode == 502) {
-			// If invalid command, show error message
 			printf("%d Invalid command.\n", retcode);
 		} else {			
-			// Command is valid (RC = 200), process command
 		
-			// open data connection
 			if ((data_sock = ftclient_open_conn(sock_control)) < 0) {
 				perror("Error opening socket for data connection");
 				exit(1);
 			}			
 			
-			// execute command
 			if (strcmp(cmd.code, "LIST") == 0) {
 				ftclient_list(data_sock, sock_control);
 			} 
 			else if (strcmp(cmd.code, "RETR") == 0) {
-				// wait for reply (is file valid)
 				if (read_reply() == 550) {
 					print_reply(550);		
 					close(data_sock);
@@ -382,9 +313,8 @@ int main(int argc, char* argv[])
 			close(data_sock);
 		}
 
-	} // loop back to get more user input
+	}
 
-	// Close the socket (control connection)
 	close(sock_control);
     return 0;  
 }
