@@ -12,19 +12,16 @@ int main(int argc, char *argv[])
 
 	port = atoi(argv[1]);
 
-	// create socket
 	if ((sock_listen = socket_create(port)) < 0 ) {
 		perror("Error creating socket");
 		exit(1);
 	}		
 	
-	while(1) {	// wait for client request
+	while(1) {
 
-		// create new socket for control connection
 		if ((sock_control = socket_accept(sock_listen))	< 0 )
 			break;			
 		
-		// create child process to do actual file transfer
 		if ((pid = fork()) < 0) { 
 			perror("Error forking child process");
 		} else if (pid == 0) { 
@@ -42,13 +39,6 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-
-
-/**
- * Send file specified in filename over data connection, sending
- * control message over control connection
- * Handles case of null or invalid filename
- */
 void ftserve_retr(int sock_control, int sock_data, char* filename)
 {	
 	FILE* fd = NULL;
@@ -58,11 +48,9 @@ void ftserve_retr(int sock_control, int sock_data, char* filename)
 	fd = fopen(filename, "r");
 	
 	if (!fd) {	
-		// send error code (550 Requested action not taken)
 		send_response(sock_control, 550);
 		
 	} else {	
-		// send okay (150 File status okay)
 		send_response(sock_control, 150);
 	
 		do {
@@ -72,13 +60,11 @@ void ftserve_retr(int sock_control, int sock_data, char* filename)
 				printf("error in fread()\n");
 			}
 
-			// send block
 			if (send(sock_data, data, num_read, 0) < 0)
 				perror("error sending file\n");
 
 		} while (num_read > 0);													
 			
-		// send message: 226: closing conn, file transfer successful
 		send_response(sock_control, 226);
 
 		fclose(fd);
@@ -104,12 +90,6 @@ int server_put(int data_sock, char* arg)
     return 0;
 }
 
-
-/**
- * Send list of files in current directory
- * over data connection
- * Return -1 on error, 0 on success
- */
 int ftserve_list(int sock_data, int sock_control)
 {
 	char data[MAXSIZE];
@@ -126,10 +106,9 @@ int ftserve_list(int sock_data, int sock_control)
 		exit(1);
 	}
 
-	/* Seek to the beginning of the file */
 	fseek(fd, SEEK_SET, 0);
 
-	send_response(sock_control, 1); //starting
+	send_response(sock_control, 1);
 
 	memset(data, 0, MAXSIZE);
 	while ((num_read = fread(data, 1, MAXSIZE, fd)) > 0) {
@@ -141,53 +120,32 @@ int ftserve_list(int sock_data, int sock_control)
 
 	fclose(fd);
 
-	send_response(sock_control, 226);	// send 226
+	send_response(sock_control, 226);
 
 	return 0;	
 }
 
-
-
-
-
-
-/**
- * Open data connection to client 
- * Returns: socket for data connection
- * or -1 on error
- */
 int ftserve_start_data_conn(int sock_control)
 {
 	char buf[1024];	
 	int wait, sock_data;
 
-	// Wait for go-ahead on control conn
 	if (recv(sock_control, &wait, sizeof wait, 0) < 0 ) {
 		perror("Error while waiting");
 		return -1;
 	}
 
-	// Get client address
 	struct sockaddr_in client_addr;
 	socklen_t len = sizeof client_addr;
 	getpeername(sock_control, (struct sockaddr*)&client_addr, &len);
 	inet_ntop(AF_INET, &client_addr.sin_addr, buf, sizeof(buf));
 
-	// Initiate data connection with client
 	if ((sock_data = socket_connect(CLIENT_PORT_ID, buf)) < 0)
 		return -1;
 
 	return sock_data;		
 }
 
-
-
-
-
-/**
- * Authenticate a user's credentials
- * Return 1 if authenticated, 0 if not
- */
 int ftserve_check_user(char*user, char*pass)
 {
 	char username[MAXSIZE];
@@ -218,7 +176,6 @@ int ftserve_check_user(char*user, char*pass)
 			strcpy(password, pch);
 		}
 
-		// remove end of line and whitespace
 		trimstr(password, (int)strlen(password));
 
 		if ((strcmp(user,username)==0) && (strcmp(pass,password)==0)) {
@@ -231,13 +188,6 @@ int ftserve_check_user(char*user, char*pass)
 	return auth;
 }
 
-
-
-
-
-/** 
- * Log in connected client
- */
 int ftserve_login(int sock_control)
 {	
 	char buf[MAXSIZE];
@@ -247,7 +197,6 @@ int ftserve_login(int sock_control)
 	memset(pass, 0, MAXSIZE);
 	memset(buf, 0, MAXSIZE);
 	
-	// Wait to recieve username
 	if ( (recv_data(sock_control, buf, sizeof(buf)) ) == -1) {
 		perror("recv error\n"); 
 		exit(1);
@@ -258,10 +207,8 @@ int ftserve_login(int sock_control)
 	while (buf[i] != 0)
 		user[n++] = buf[i++];
 	
-	// tell client we're ready for password
 	send_response(sock_control, 331);					
 	
-	// Wait to recieve password
 	memset(buf, 0, MAXSIZE);
 	if ( (recv_data(sock_control, buf, sizeof(buf)) ) == -1) {
 		perror("recv error\n"); 
@@ -277,11 +224,6 @@ int ftserve_login(int sock_control)
 	return (ftserve_check_user(user, pass));
 }
 
-/**
- * Wait for command from client and
- * send response
- * Returns response code
- */
 int ftserve_recv_cmd(int sock_control, char*cmd, char*arg)
 {	
 	int rc = 200;
@@ -306,7 +248,7 @@ int ftserve_recv_cmd(int sock_control, char*cmd, char*arg)
 	} else if((strcmp(cmd, "USER")==0) || (strcmp(cmd, "PASS")==0) ||
 		    (strcmp(cmd, "LIST")==0) || (strcmp(cmd, "RETR")==0) || (strcmp(cmd, "STOR")==0)) {
 		rc = 200;
-	}  else { //invalid command
+	}  else {
 		rc = 502;
 	}
 
@@ -314,24 +256,14 @@ int ftserve_recv_cmd(int sock_control, char*cmd, char*arg)
 	return rc;
 }
 
-
-
-
-
-
-/** 
- * Child process handles connection to client
- */
 void ftserve_process(int sock_control)
 {
 	int sock_data;
 	char cmd[5];
 	char arg[MAXSIZE];
 
-	// Send welcome message
 	send_response(sock_control, 220);
 
-	// Authenticate user
 	if (ftserve_login(sock_control) == 1) {
 		send_response(sock_control, 230);
 	} else {
@@ -340,7 +272,6 @@ void ftserve_process(int sock_control)
 	}	
 	
 	while (1) {
-		// Wait for command
 		int rc = ftserve_recv_cmd(sock_control, cmd, arg);
 		
 		if ((rc < 0) || (rc == 221)) {
@@ -348,23 +279,20 @@ void ftserve_process(int sock_control)
 		}
 		
 		if (rc == 200 ) {
-			// Open data connection with client
 			if ((sock_data = ftserve_start_data_conn(sock_control)) < 0) {
 				close(sock_control);
 				exit(1); 
 			}
 
-			// Execute command
-			if (strcmp(cmd, "LIST")==0) { // Do list
+			if (strcmp(cmd, "LIST")==0) {
 				ftserve_list(sock_data, sock_control);
-			} else if (strcmp(cmd, "RETR")==0) { // Do get <filename>
+			} else if (strcmp(cmd, "RETR")==0) {
 				ftserve_retr(sock_control, sock_data, arg);
 			}
 			else if (strcmp(cmd, "STOR")==0) {
 				server_put(sock_data, arg);
 			}
 		
-			// Close data connection
 			close(sock_data);
 		} 
 	}
